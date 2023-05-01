@@ -1,0 +1,2 @@
+python train.py --dset_id 42731 --task 'regression' --attentiontype 'colrow' (Housing)
+python train.py --dset_id 41540 --task 'regression' --attentiontype 'colrow' (black_friday)
