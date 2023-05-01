@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 
-def embed_data_mask(x_categ, x_cont, cat_mask, con_mask,model,vision_dset=False):
+def embed_data_mask(x_categ, x_cont, cat_mask, con_mask, model, vision_dset=False):
     device = x_cont.device
     x_categ = x_categ + model.categories_offset.type_as(x_categ)
     x_categ_enc = model.embeds(x_categ)
@@ -34,8 +34,6 @@ def embed_data_mask(x_categ, x_cont, cat_mask, con_mask,model,vision_dset=False)
         x_categ_enc+=pos_enc
 
     return x_categ, x_categ_enc, x_cont_enc
-
-
 
 
 def mixup_data(x1, x2 , lam=1.0, y= None, use_cuda=True):

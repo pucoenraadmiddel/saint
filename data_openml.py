@@ -10,7 +10,6 @@ def simple_lapsed_time(text, lapsed):
     minutes, seconds = divmod(rem, 60)
     print(text+": {:0>2}:{:0>2}:{:05.2f}".format(int(hours),int(minutes),seconds))
 
-
 def task_dset_ids(task):
     dataset_ids = {
         'binary': [1487,44,1590,42178,1111,31,42733,1494,1017,4134],
@@ -24,8 +23,7 @@ def concat_data(X,y):
     # import ipdb; ipdb.set_trace()
     return pd.concat([pd.DataFrame(X['data']), pd.DataFrame(y['data'][:,0].tolist(),columns=['target'])], axis=1)
 
-
-def data_split(X,y,nan_mask,indices):
+def data_split(X, y, nan_mask, indices):
     x_d = {
         'data': X.values[indices],
         'mask': nan_mask.values[indices]
@@ -34,11 +32,12 @@ def data_split(X,y,nan_mask,indices):
     if x_d['data'].shape != x_d['mask'].shape:
         raise'Shape of data not same as that of nan mask!'
         
+    # import ipdb; ipdb.set_trace()
     y_d = {
         'data': y[indices].reshape(-1, 1)
+        # 'data': np.array(y.[indices]).reshape(-1, 1)
     } 
     return x_d, y_d
-
 
 def data_prep_openml(ds_id, seed, task, datasplit=[.65, .15, .2]):
     
@@ -55,7 +54,6 @@ def data_prep_openml(ds_id, seed, task, datasplit=[.65, .15, .2]):
         X.reset_index(drop=True, inplace=True)
         print(y.shape, X.shape)
     if ds_id in [42728,42705,42729,42571]:
-        # import ipdb; ipdb.set_trace()
         X, y = X[:50000], y[:50000]
         X.reset_index(drop=True, inplace=True)
     categorical_columns = X.columns[list(np.where(np.array(categorical_indicator)==True)[0])].tolist()
@@ -97,11 +95,7 @@ def data_prep_openml(ds_id, seed, task, datasplit=[.65, .15, .2]):
 
     train_mean, train_std = np.array(X_train['data'][:,con_idxs],dtype=np.float32).mean(0), np.array(X_train['data'][:,con_idxs],dtype=np.float32).std(0)
     train_std = np.where(train_std < 1e-6, 1e-6, train_std)
-    # import ipdb; ipdb.set_trace()
     return cat_dims, cat_idxs, con_idxs, X_train, y_train, X_valid, y_valid, X_test, y_test, train_mean, train_std
-
-
-
 
 class DataSetCatCon(Dataset):
     def __init__(self, X, Y, cat_cols,task='clf',continuous_mean_std=None):
