@@ -86,7 +86,7 @@ if opt.active_log:
 
 print('Downloading and processing the dataset, it might take some time.')
 cat_dims, cat_idxs, con_idxs, X_train, y_train, X_valid, y_valid, X_test, y_test, train_mean, train_std = data_prep_openml(opt.dset_id, opt.dset_seed,opt.task, datasplit=[.65, .15, .2])
-continuous_mean_std = np.array([train_mean,train_std]).astype(np.float32) 
+continuous_mean_std = np.array([train_mean, train_std]).astype(np.float32) 
 
 ##### Setting some hyperparams based on inputs and dataset
 _,nfeat = X_train['data'].shape
@@ -100,19 +100,19 @@ if opt.attentiontype != 'col':
     opt.embedding_size = min(32,opt.embedding_size)
     opt.ff_dropout = 0.8
 
-print(nfeat,opt.batchsize)
+print(nfeat, opt.batchsize)
 print(opt)
 
 if opt.active_log:
     wandb.config.update(opt)
-train_ds = DataSetCatCon(X_train, y_train, cat_idxs,opt.dtask,continuous_mean_std)
-trainloader = DataLoader(train_ds, batch_size=opt.batchsize, shuffle=True,num_workers=4)
+train_ds = DataSetCatCon(X_train, y_train, cat_idxs, opt.dtask, continuous_mean_std)
+trainloader = DataLoader(train_ds, batch_size=opt.batchsize, shuffle=True, num_workers=4)
 
-valid_ds = DataSetCatCon(X_valid, y_valid, cat_idxs,opt.dtask, continuous_mean_std)
-validloader = DataLoader(valid_ds, batch_size=opt.batchsize, shuffle=False,num_workers=4)
+valid_ds = DataSetCatCon(X_valid, y_valid, cat_idxs, opt.dtask, continuous_mean_std)
+validloader = DataLoader(valid_ds, batch_size=opt.batchsize, shuffle=False, num_workers=4)
 
-test_ds = DataSetCatCon(X_test, y_test, cat_idxs,opt.dtask, continuous_mean_std)
-testloader = DataLoader(test_ds, batch_size=opt.batchsize, shuffle=False,num_workers=4)
+test_ds = DataSetCatCon(X_test, y_test, cat_idxs, opt.dtask, continuous_mean_std)
+testloader = DataLoader(test_ds, batch_size=opt.batchsize, shuffle=False, num_workers=4)
 if opt.task == 'regression':
     y_dim = 1
 else:
@@ -120,7 +120,23 @@ else:
 
 cat_dims = np.append(np.array([1]),np.array(cat_dims)).astype(int) #Appending 1 for CLS token, this is later used to generate embeddings.
 
-
+print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+print("cat_dims=", tuple(cat_dims) )
+print("num_continuous =", len(con_idxs))
+print("dim =", opt.embedding_size)
+print("dim_out =", 1)
+print("depth =", opt.transformer_depth)
+print("heads =", opt.attention_heads)
+print("attn_dropout =", opt.attention_dropout)
+print("ff_dropout =", opt.ff_dropout)
+print("mlp_hidden_mults =", (4, 2))
+print("cont_embeddings =", opt.cont_embeddings)
+print("attentiontype =", opt.attentiontype)
+print("final_mlp_style =", opt.final_mlp_style)
+print("y_dim =", y_dim)
+print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
 
 model = SAINT(
 categories = tuple(cat_dims), 
@@ -211,9 +227,9 @@ for epoch in range(opt.epochs):
                     test_accuracy, test_auroc = classification_scores(model, testloader, device, opt.task,vision_dset)
 
                     print('[EPOCH %d] VALID ACCURACY: %.3f, VALID AUROC: %.3f' %
-                        (epoch + 1, accuracy,auroc ))
+                        (epoch + 1, accuracy, auroc ))
                     print('[EPOCH %d] TEST ACCURACY: %.3f, TEST AUROC: %.3f' %
-                        (epoch + 1, test_accuracy,test_auroc ))
+                        (epoch + 1, test_accuracy, test_auroc ))
                     if opt.active_log:
                         wandb.log({'valid_accuracy': accuracy ,'valid_auroc': auroc })     
                         wandb.log({'test_accuracy': test_accuracy ,'test_auroc': test_auroc })  
