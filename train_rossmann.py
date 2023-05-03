@@ -69,8 +69,6 @@ categorical_columns = ['Store',
                         # 'WeekOfYear',
                         'IsPromoMonth']
 
-
-
 # split x and y
 X_all, y_all = train.drop(columns = ['Sales', 'Set']), np.log1p(train[['Sales']].values)
 
@@ -115,7 +113,7 @@ cat_dims = np.append(np.array([1]),np.array(cat_dims)).astype(int) #Appending 1 
 print('finished loading...')
 
 def main(opt):
-    wandb.init(project="saint_v2_all_rossmann", group = "eigth_sweeps" , config=opt)
+    wandb.init(project="saint_rossmann_mse", group =opt.run_name ,name = f'pretrain_{opt.task}_{str(opt.attentiontype)}_{str(opt.set_seed)}', config=opt)
     #for regression this is the output dimension
     
     opt = wandb.config
@@ -171,7 +169,7 @@ def main(opt):
     from utils import count_parameters, classification_scores, mean_sq_error
     import os
 
-    modelsave_path = os.path.join(opt.savemodelroot,opt.run_name)
+    modelsave_path = os.path.join(opt.savemodelroot, opt.run_name)
 
     vision_dset = opt.vision_dset
 
@@ -206,17 +204,29 @@ def main(opt):
         if epoch%1==0:
                 model.eval()
                 with torch.no_grad():
-                    valid_rmse = mean_sq_error(model, validloader, device, vision_dset)    
-                    test_rmse = mean_sq_error(model, testloader, device, vision_dset)  
-                    print('[EPOCH %d] VALID RMSE: %.3f' %
-                        (epoch + 1, valid_rmse ))
-                    print('[EPOCH %d] TEST RMSE: %.3f' %
-                        (epoch + 1, test_rmse ))
+                    valid_rmse, orig_valid_rmse = mean_sq_error(model, validloader, device, vision_dset)    
+                    test_rmse, orig_test_rmse = mean_sq_error(model, testloader, device, vision_dset)  
+                    train_rmse, orig_train_rmse = mean_sq_error(model, trainloader, device, vision_dset)  
+                    print('[EPOCH %d] VALID RMSE: %.3f, ORIG VALID RMSE: %.3f' %
+                        (epoch + 1, valid_rmse, orig_valid_rmse ))
+                    print('[EPOCH %d] TEST RMSE: %.3f, ORIG TEST RMSE: %.3f' %
+                        (epoch + 1, test_rmse, orig_test_rmse ))
+                    print('[EPOCH %d] TRAIN RMSE: %.3f, ORIG TRAIN RMSE: %.3f' %
+                        (epoch + 1, train_rmse, orig_train_rmse ))
+
+                    
+                    if opt.active_log:
+                        wandb.log({'valid_rmse': valid_rmse
+                                    , 'test_rmse': test_rmse
+                                    , 'train_rmse': train_rmse
+                                    , 'orig_valid_rmse': orig_valid_rmse
+                                    , 'orig_test_rmse': orig_test_rmse
+                                    , 'orig_train_rmse': orig_train_rmse })     
                     if valid_rmse < best_valid_rmse:
                         best_valid_rmse = valid_rmse
                         best_test_rmse = test_rmse
+                        best_train_rmse = train_rmse
                         torch.save(model.state_dict(),'%s/bestmodel.pth' % (modelsave_path))
-                wandb.log({'valid_rmse': valid_rmse ,'test_rmse': test_rmse })     
                 model.train()
     total_parameters = count_parameters(model)
     print('TOTAL NUMBER OF PARAMS: %d' %(total_parameters))
@@ -258,8 +268,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr', default=0.00001, type=float)
     parser.add_argument('--epochs', default=100, type=int)
     parser.add_argument('--batchsize', default=256, type=int)
-    parser.add_argument('--savemodelroot', default='./bestmodels', type=str)
-    parser.add_argument('--run_name', default='testrun', type=str)
+    parser.add_argument('--savemodelroot', default='/home/coenraadmiddel/Documents/RossmannStoreSales/SAINT/saint/bestmodels/regression', type=str)
+    parser.add_argument('--run_name', default='Rossmann', type=str)
     parser.add_argument('--set_seed', default= 42 , type=int)
     parser.add_argument('--dset_seed', default= 42 , type=int)
     parser.add_argument('--active_log', default=True, type=bool)

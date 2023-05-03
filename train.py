@@ -31,7 +31,7 @@ parser.add_argument('--scheduler', default='cosine', type=str,choices = ['cosine
 parser.add_argument('--lr', default=0.0001, type=float)
 parser.add_argument('--epochs', default=100, type=int)
 parser.add_argument('--batchsize', default=256, type=int)
-parser.add_argument('--savemodelroot', default='./bestmodels', type=str)
+parser.add_argument('--savemodelroot', default='./bestmodels/Rossmann', type=str)
 parser.add_argument('--run_name', default='testrun', type=str)
 parser.add_argument('--set_seed', default= 1 , type=int)
 parser.add_argument('--dset_seed', default= 5 , type=int)
@@ -75,14 +75,15 @@ os.makedirs(modelsave_path, exist_ok=True)
 if opt.active_log:
     import wandb
     if opt.pretrain:
-        wandb.init(project="saint_v2_all", group =opt.run_name ,name = f'pretrain_{opt.task}_{str(opt.attentiontype)}_{str(opt.dset_id)}_{str(opt.set_seed)}')
+        wandb.init(project="saint_rossmann_mse", group =opt.run_name ,name = f'pretrain_{opt.task}_{str(opt.attentiontype)}_{str(opt.dset_id)}_{str(opt.set_seed)}')
     else:
         if opt.task=='multiclass':
-            wandb.init(project="saint_v2_all_kamal", group =opt.run_name ,name = f'{opt.task}_{str(opt.attentiontype)}_{str(opt.dset_id)}_{str(opt.set_seed)}')
+            wandb.init(project="saint_rossmann_mse_kamal", group =opt.run_name ,name = f'{opt.task}_{str(opt.attentiontype)}_{str(opt.dset_id)}_{str(opt.set_seed)}')
         else:
-            wandb.init(project="saint_v2_all", group =opt.run_name ,name = f'{opt.task}_{str(opt.attentiontype)}_{str(opt.dset_id)}_{str(opt.set_seed)}')
-   
-
+            wandb.init(project="saint_rossmann_mse"
+                    #    , group =opt.run_name
+                       , name = f'{opt.task}_{str(opt.attentiontype)}_{str(opt.dset_id)}_{str(opt.set_seed)}'
+                       )
 
 print('Downloading and processing the dataset, it might take some time.')
 cat_dims, cat_idxs, con_idxs, X_train, y_train, X_valid, y_valid, X_test, y_test, train_mean, train_std = data_prep_openml(opt.dset_id, opt.dset_seed,opt.task, datasplit=[.65, .15, .2])
@@ -139,19 +140,19 @@ print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
 print('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
 
 model = SAINT(
-categories = tuple(cat_dims), 
-num_continuous = len(con_idxs),                
-dim = opt.embedding_size,                           
-dim_out = 1,                       
-depth = opt.transformer_depth,                       
-heads = opt.attention_heads,                         
-attn_dropout = opt.attention_dropout,             
-ff_dropout = opt.ff_dropout,                  
-mlp_hidden_mults = (4, 2),       
-cont_embeddings = opt.cont_embeddings,
-attentiontype = opt.attentiontype,
-final_mlp_style = opt.final_mlp_style,
-y_dim = y_dim
+    categories = tuple(cat_dims), 
+    num_continuous = len(con_idxs),                
+    dim = opt.embedding_size,                           
+    dim_out = 1,                       
+    depth = opt.transformer_depth,                       
+    heads = opt.attention_heads,                         
+    attn_dropout = opt.attention_dropout,             
+    ff_dropout = opt.ff_dropout,                  
+    mlp_hidden_mults = (4, 2),       
+    cont_embeddings = opt.cont_embeddings,
+    attentiontype = opt.attentiontype,
+    final_mlp_style = opt.final_mlp_style,
+    y_dim = y_dim
 )
 vision_dset = opt.vision_dset
 
@@ -206,9 +207,9 @@ for epoch in range(opt.epochs):
         
         y_outs = model.mlpfory(y_reps)
         if opt.task == 'regression':
-            loss = criterion(y_outs,y_gts) 
+            loss = criterion(y_outs, y_gts) 
         else:
-            loss = criterion(y_outs,y_gts.squeeze()) 
+            loss = criterion(y_outs, y_gts.squeeze()) 
         loss.backward()
         optimizer.step()
         if opt.optimizer == 'SGD':
@@ -219,52 +220,33 @@ for epoch in range(opt.epochs):
         wandb.log({'epoch': epoch ,'train_epoch_loss': running_loss, 
         'loss': loss.item()
         })
-    if epoch%5==0:
-            model.eval()
-            with torch.no_grad():
-                if opt.task in ['binary','multiclass']:
-                    accuracy, auroc = classification_scores(model, validloader, device, opt.task,vision_dset)
-                    test_accuracy, test_auroc = classification_scores(model, testloader, device, opt.task,vision_dset)
-
-                    print('[EPOCH %d] VALID ACCURACY: %.3f, VALID AUROC: %.3f' %
-                        (epoch + 1, accuracy, auroc ))
-                    print('[EPOCH %d] TEST ACCURACY: %.3f, TEST AUROC: %.3f' %
-                        (epoch + 1, test_accuracy, test_auroc ))
-                    if opt.active_log:
-                        wandb.log({'valid_accuracy': accuracy ,'valid_auroc': auroc })     
-                        wandb.log({'test_accuracy': test_accuracy ,'test_auroc': test_auroc })  
-                    if opt.task =='multiclass':
-                        if accuracy > best_valid_accuracy:
-                            best_valid_accuracy = accuracy
-                            best_test_auroc = test_auroc
-                            best_test_accuracy = test_accuracy
-                            torch.save(model.state_dict(),'%s/bestmodel.pth' % (modelsave_path))
-                    else:
-                        if accuracy > best_valid_accuracy:
-                            best_valid_accuracy = accuracy
-                        # if auroc > best_valid_auroc:
-                        #     best_valid_auroc = auroc
-                            best_test_auroc = test_auroc
-                            best_test_accuracy = test_accuracy               
-                            torch.save(model.state_dict(),'%s/bestmodel.pth' % (modelsave_path))
-
-                else:
-                    valid_rmse = mean_sq_error(model, validloader, device,vision_dset)    
-                    test_rmse = mean_sq_error(model, testloader, device,vision_dset)  
-                    print('[EPOCH %d] VALID RMSE: %.3f' %
-                        (epoch + 1, valid_rmse ))
-                    print('[EPOCH %d] TEST RMSE: %.3f' %
-                        (epoch + 1, test_rmse ))
-                    if opt.active_log:
-                        wandb.log({'valid_rmse': valid_rmse ,'test_rmse': test_rmse })     
-                    if valid_rmse < best_valid_rmse:
-                        best_valid_rmse = valid_rmse
-                        best_test_rmse = test_rmse
-                        torch.save(model.state_dict(),'%s/bestmodel.pth' % (modelsave_path))
-            model.train()
+    model.eval()
+    with torch.no_grad():
                 
-
-
+        valid_rmse, orig_valid_rmse = mean_sq_error(model, validloader, device, vision_dset)    
+        test_rmse, orig_test_rmse = mean_sq_error(model, testloader, device, vision_dset)  
+        train_rmse, orig_train_rmse = mean_sq_error(model, trainloader, device, vision_dset)  
+        print('[EPOCH %d] VALID RMSE: %.3f, ORIG VALID RMSE: %.3f' %
+            (epoch + 1, valid_rmse, orig_valid_rmse ))
+        print('[EPOCH %d] TEST RMSE: %.3f, ORIG TEST RMSE' %
+            (epoch + 1, test_rmse, orig_test_rmse ))
+        print('[EPOCH %d] TRAIN RMSE: %.3f, ORIG TRAIN RMSE' %
+            (epoch + 1, train_rmse, orig_train_rmse ))
+        if opt.active_log:
+            wandb.log({'valid_rmse': valid_rmse
+                        , 'test_rmse': test_rmse
+                        , 'train_rmse': train_rmse
+                        , 'orig_valid_rmse': orig_valid_rmse
+                        , 'orig_test_rmse': orig_test_rmse
+                        , 'orig_train_rmse': orig_train_rmse })     
+        if valid_rmse < best_valid_rmse:
+            best_valid_rmse = valid_rmse
+            best_test_rmse = test_rmse
+            best_train_rmse = train_rmse
+            torch.save(model.state_dict(),'%s/bestmodel.pth' % (modelsave_path))
+    
+    model.train()
+                
 total_parameters = count_parameters(model)
 print('TOTAL NUMBER OF PARAMS: %d' %(total_parameters))
 if opt.task =='binary':
