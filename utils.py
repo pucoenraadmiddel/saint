@@ -12,7 +12,6 @@ def make_default_mask(x):
 def tag_gen(tag,y):
     return np.repeat(tag,len(y['data']))
 
-
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)  
 
@@ -47,7 +46,6 @@ def imputations_acc_justy(model,dloader,device):
     auc = roc_auc_score(y_score=prob.cpu(), y_true=y_test.cpu())
     return acc, auc
 
-
 def multiclass_acc_justy(model,dloader,device):
     model.eval()
     vision_dset = True
@@ -69,7 +67,6 @@ def multiclass_acc_justy(model,dloader,device):
     correct_results_sum = (y_pred == y_test).sum().float()
     acc = correct_results_sum/y_test.shape[0]*100
     return acc, 0
-
 
 def classification_scores(model, dloader, device, task,vision_dset):
     model.eval()
@@ -97,6 +94,11 @@ def classification_scores(model, dloader, device, task,vision_dset):
         auc = roc_auc_score(y_score=prob.cpu(), y_true=y_test.cpu())
     return acc.cpu().numpy(), auc
 
+def convert_to_original_domain(self, y_true, scores):
+    y_true_orig = np.expm1(y_true)
+    scores_orig = np.expm1(scores)
+    return y_true_orig, scores_orig
+
 def mean_sq_error(model, dloader, device, vision_dset):
     model.eval()
     y_test = torch.empty(0).to(device)
@@ -104,13 +106,18 @@ def mean_sq_error(model, dloader, device, vision_dset):
     with torch.no_grad():
         for i, data in enumerate(dloader, 0):
             x_categ, x_cont, y_gts, cat_mask, con_mask = data[0].to(device), data[1].to(device),data[2].to(device),data[3].to(device),data[4].to(device)
-            _ , x_categ_enc, x_cont_enc = embed_data_mask(x_categ, x_cont, cat_mask, con_mask,model,vision_dset)           
+            _ , x_categ_enc, x_cont_enc = embed_data_mask(x_categ, x_cont, cat_mask, con_mask,model, vision_dset)           
             reps = model.transformer(x_categ_enc, x_cont_enc)
             y_reps = reps[:,0,:]
             y_outs = model.mlpfory(y_reps)
             y_test = torch.cat([y_test,y_gts.squeeze().float()],dim=0)
             y_pred = torch.cat([y_pred,y_outs],dim=0)
-        # import ipdb; ipdb.set_trace() 
         rmse = mean_squared_error(y_test.cpu(), y_pred.cpu(), squared=False)
-        return rmse
+        
+        # Convert y_test and y_pred to their original domain
+        y_test_orig, y_pred_orig = convert_to_original_domain(None, y_test.cpu().numpy(), y_pred.cpu().numpy())
 
+        # Compute orig_rmse in the original domain
+        orig_rmse = mean_squared_error(y_test_orig, y_pred_orig, squared=False)
+        
+        return rmse, orig_rmse
