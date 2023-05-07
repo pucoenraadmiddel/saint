@@ -213,7 +213,6 @@ def main(opt):
                         (epoch + 1, test_rmse, orig_test_rmse ))
                     print('[EPOCH %d] TRAIN RMSE: %.3f, ORIG TRAIN RMSE: %.3f' %
                         (epoch + 1, train_rmse, orig_train_rmse ))
-
                     
                     if opt.active_log:
                         wandb.log({'valid_rmse': valid_rmse
@@ -227,7 +226,15 @@ def main(opt):
                         best_test_rmse = test_rmse
                         best_train_rmse = train_rmse
                         torch.save(model.state_dict(),'%s/bestmodel.pth' % (modelsave_path))
+                        early_stop_count = 0
+                    else:
+                        early_stop_count += 1
+                        print(f"Early stopping counter: {early_stop_count}/{opt.patience}")
+                        if early_stop_count >= opt.patience:
+                            print('EARLY STOPPING')
+                            break
                 model.train()
+                
     total_parameters = count_parameters(model)
     print('TOTAL NUMBER OF PARAMS: %d' %(total_parameters))
     if opt.task =='binary':
@@ -293,6 +300,8 @@ if __name__ == '__main__':
     parser.add_argument('--lam2', default=1, type=float)
     parser.add_argument('--lam3', default=10, type=float)
     parser.add_argument('--final_mlp_style', default='sep', type=str,choices = ['common','sep'])
+
+    parser.add_argument('--patience', default=30, type=int, help='Number of epochs to wait before stopping if no improvement in validation accuracy')
 
 
     opt = parser.parse_args()   
