@@ -225,7 +225,11 @@ def main(opt):
                         best_valid_rmse = valid_rmse
                         best_test_rmse = test_rmse
                         best_train_rmse = train_rmse
-                        torch.save(model.state_dict(),'%s/bestmodel.pth' % (modelsave_path))
+                        torch.save(model.state_dict(), '%s/bestmodel.pth' % (modelsave_path))
+                            #Save as artifact on weights and biases
+                        artifact = wandb.Artifact('SAINT_model', type='model')
+                        artifact.add_file('%s/bestmodel.pth' % (modelsave_path))
+                        wandb.run.log_artifact(artifact)
                         early_stop_count = 0
                     else:
                         early_stop_count += 1
