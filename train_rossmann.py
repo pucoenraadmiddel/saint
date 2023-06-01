@@ -54,8 +54,6 @@ train_indices = train[train.Set=="train"].index
 valid_indices = train[train.Set=="valid"].index
 test_indices = train[train.Set=="test"].index
 
-
-    
 categorical_columns = ['Store',
                         'DayOfWeek',
                         'Promo',
@@ -113,7 +111,7 @@ cat_dims = np.append(np.array([1]),np.array(cat_dims)).astype(int) #Appending 1 
 print('finished loading...')
 
 def main(opt):
-    wandb.init(project="saint_rossmann_mse", group =opt.run_name ,name = f'pretrain_{opt.task}_{str(opt.attentiontype)}_{str(opt.set_seed)}', config=opt)
+    wandb.init(project="saint_rossmann_mse", name = f'pretrain_{opt.task}_{str(opt.attentiontype)}_{str(opt.set_seed)}', config=opt)
     #for regression this is the output dimension
     
     opt = wandb.config
@@ -225,10 +223,13 @@ def main(opt):
                         best_valid_rmse = valid_rmse
                         best_test_rmse = test_rmse
                         best_train_rmse = train_rmse
-                        torch.save(model.state_dict(), '%s/bestmodel.pth' % (modelsave_path))
-                            #Save as artifact on weights and biases
-                        artifact = wandb.Artifact('SAINT_model', type='model')
-                        artifact.add_file('%s/bestmodel.pth' % (modelsave_path))
+                        
+                        #get the run id from wandb
+                        run_id = wandb.run.id
+                        torch.save(model.state_dict(), f'{modelsave_path}/SAINT_model_best_{run_id}.pt')
+                        #Save as artifact on weights and biases
+                        artifact = wandb.Artifact(f'SAINT_model_best_{run_id}', type='model')
+                        #add the run id to the artifact                       
                         wandb.run.log_artifact(artifact)
                         early_stop_count = 0
                     else:
@@ -280,7 +281,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', default=100, type=int)
     parser.add_argument('--batchsize', default=256, type=int)
     parser.add_argument('--savemodelroot', default='/home/coenraadmiddel/Documents/RossmannStoreSales/SAINT/saint/bestmodels/regression', type=str)
-    parser.add_argument('--run_name', default='Rossmann', type=str)
+    parser.add_argument('--run_name', default='rossmann_local', type=str)
     parser.add_argument('--set_seed', default= 42 , type=int)
     parser.add_argument('--dset_seed', default= 42 , type=int)
     parser.add_argument('--active_log', default=True, type=bool)
