@@ -111,7 +111,7 @@ cat_dims = np.append(np.array([1]),np.array(cat_dims)).astype(int) #Appending 1 
 print('finished loading...')
 
 def main(opt):
-    wandb.init(project="saint_rossmann_mse", name = f'pretrain_{opt.task}_{str(opt.attentiontype)}_{str(opt.set_seed)}', config=opt)
+    wandb.init(project="saint_rossmann_mse", config=opt)
     #for regression this is the output dimension
     
     opt = wandb.config
