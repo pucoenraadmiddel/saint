@@ -9,7 +9,6 @@ from torch import nn
 
 from models import SAINT
 import torch
-torch.manual_seed(42)
 import wandb
 
 import sys
@@ -111,10 +110,13 @@ cat_dims = np.append(np.array([1]),np.array(cat_dims)).astype(int) #Appending 1 
 print('finished loading...')
 
 def main(opt):
-    wandb.init(project="saint_rossmann_mse", config=opt)
+    wandb.init(project="saint_rossmann_mse", group='seed=7', config=opt)
     #for regression this is the output dimension
     
     opt = wandb.config
+
+    #set the initialization seed:
+    torch.manual_seed(7)
 
     print(opt)
     model = SAINT(categories = tuple(cat_dims), 
@@ -129,7 +131,7 @@ def main(opt):
                     cont_embeddings = opt.cont_embeddings,
                     attentiontype = opt.attentiontype,
                     final_mlp_style = opt.final_mlp_style,
-                    y_dim = y_dim
+                    y_dim = y_dim,
                     )
 
 
@@ -282,7 +284,7 @@ if __name__ == '__main__':
     parser.add_argument('--batchsize', default=256, type=int)
     parser.add_argument('--savemodelroot', default='/home/coenraadmiddel/Documents/RossmannStoreSales/SAINT/saint/bestmodels/regression', type=str)
     parser.add_argument('--run_name', default='rossmann_local', type=str)
-    parser.add_argument('--set_seed', default= 42 , type=int)
+    parser.add_argument('--set_seed', default= 7 , type=int)
     parser.add_argument('--dset_seed', default= 42 , type=int)
     parser.add_argument('--active_log', default=True, type=bool)
 

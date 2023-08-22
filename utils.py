@@ -120,6 +120,9 @@ def mean_sq_error(model, dloader, device, vision_dset):
         # Compute orig_rmse in the original domain
         orig_rmse = mean_squared_error(y_test_orig, y_pred_orig, squared=False)
         
+    return rmse, orig_rmse
+
+        
 def mean_sq_error_per_sample(model, dloader, device, vision_dset=False):
     model.eval()
     losses = []

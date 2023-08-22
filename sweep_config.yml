@@ -1,0 +1,61 @@
+method: bayes
+metric:
+  goal: minimize
+  name: orig_valid_rmse
+parameters:
+  attention_dropout:
+    distribution: uniform
+    max: 0.3
+    min: 0.05
+  attention_heads:
+    distribution: int_uniform
+    max: 8
+    min: 2
+  attentiontype:
+    distribution: categorical
+    values:
+      - colrow
+  batchsize:
+    distribution: int_uniform
+    max: 512
+    min: 128
+  cont_embeddings:
+    distribution: categorical
+    values:
+      - MLP
+  embedding_size:
+    distribution: int_uniform
+    max: 64
+    min: 16
+  epochs:
+    distribution: int_uniform
+    max: 200
+    min: 50
+  ff_dropout:
+    distribution: uniform
+    max: 0.9
+    min: 0.1
+  final_mlp_style:
+    distribution: categorical
+    values:
+      - sep
+  lr:
+    distribution: uniform
+    max: 0.001
+    min: 5e-05
+  optimizer:
+    distribution: categorical
+    values:
+      - AdamW
+  scheduler:
+    distribution: categorical
+    values:
+      - cosine
+  set_seed:
+    values:
+      - 7
+  transformer_depth:
+    distribution: int_uniform
+    max: 12
+    min: 3
+program: train_rossmann.py
