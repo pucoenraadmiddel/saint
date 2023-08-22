@@ -132,3 +132,6 @@ bestmodels/
 artifacts/
 models/
 wandb/
+
+*.csv
+*.parquet

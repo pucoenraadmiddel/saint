@@ -20,7 +20,7 @@ import torch.optim as optim
 
 
 print('Reading the data...')
-train = pd.read_parquet(r'/home/coenraadmiddel/Documents/RossmannStoreSales/TabNet/tabnet/train_processed.parquet')
+train = pd.read_parquet(r'train_processed.parquet')
 print("Read:", train.shape)
 
 #select only a couple of columns
