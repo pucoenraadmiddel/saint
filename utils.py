@@ -120,4 +120,41 @@ def mean_sq_error(model, dloader, device, vision_dset):
         # Compute orig_rmse in the original domain
         orig_rmse = mean_squared_error(y_test_orig, y_pred_orig, squared=False)
         
-        return rmse, orig_rmse
+def mean_sq_error_per_sample(model, dloader, device, vision_dset=False):
+    model.eval()
+    losses = []
+    with torch.no_grad():
+        for i, data in enumerate(dloader, 0):
+            x_categ, x_cont, y_gts, cat_mask, con_mask = data[0].to(device), data[1].to(device),data[2].to(device),data[3].to(device),data[4].to(device)
+            _ , x_categ_enc, x_cont_enc = embed_data_mask(x_categ, x_cont, cat_mask, con_mask,model, vision_dset)           
+            reps = model.transformer(x_categ_enc, x_cont_enc)
+            y_reps = reps[:,0,:]
+            y_outs = model.mlpfory(y_reps)
+
+            # Convert y_gts and y_outs to their original domain
+            y_gts_orig, y_outs_orig = convert_to_original_domain(None, y_gts.cpu().numpy(), y_outs.cpu().numpy())
+            # Compute the squared difference for each sample and append to the list
+            for y_true, y_pred in zip(y_gts_orig, y_outs_orig):
+                mse_per_sample = np.sqrt(np.average((y_true - y_pred) ** 2, axis = 0))
+            losses.append(mse_per_sample)
+
+    return losses
+
+
+def predict(model, dloader, device, vision_dset=False):
+    model.eval()
+    preds = []
+    with torch.no_grad():
+        for i, data in enumerate(dloader, 0):
+            x_categ, x_cont, y_gts, cat_mask, con_mask = data[0].to(device), data[1].to(device),data[2].to(device),data[3].to(device),data[4].to(device)
+            _ , x_categ_enc, x_cont_enc = embed_data_mask(x_categ, x_cont, cat_mask, con_mask,model, vision_dset)           
+            reps = model.transformer(x_categ_enc, x_cont_enc)
+            y_reps = reps[:,0,:]
+            y_outs = model.mlpfory(y_reps)
+
+            # Convert y_gts and y_outs to their original domain
+            y_gts_orig, y_outs_orig = convert_to_original_domain(None, y_gts.cpu().numpy(), y_outs.cpu().numpy())
+            # import ipdb; ipdb.set_trace()
+            preds.extend(y_outs_orig.flatten().tolist())
+            
+        return preds
