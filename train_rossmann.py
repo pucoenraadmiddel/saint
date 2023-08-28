@@ -282,7 +282,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', default=0.00001, type=float)
     parser.add_argument('--epochs', default=100, type=int)
     parser.add_argument('--batchsize', default=256, type=int)
-    parser.add_argument('--savemodelroot', default='/home/coenraadmiddel/Documents/RossmannStoreSales/SAINT/saint/bestmodels/regression', type=str)
+    parser.add_argument('--savemodelroot', default='/home/coenraadmiddel/Documents/Rossmann Store Sales/saint/bestmodels/regression/', type=str)
     parser.add_argument('--run_name', default='rossmann_local', type=str)
     parser.add_argument('--set_seed', default= 7 , type=int)
     parser.add_argument('--dset_seed', default= 42 , type=int)
@@ -308,7 +308,7 @@ if __name__ == '__main__':
     parser.add_argument('--lam3', default=10, type=float)
     parser.add_argument('--final_mlp_style', default='sep', type=str,choices = ['common','sep'])
 
-    parser.add_argument('--patience', default=30, type=int, help='Number of epochs to wait before stopping if no improvement in validation accuracy')
+    parser.add_argument('--patience', default=10, type=int, help='Number of epochs to wait before stopping if no improvement in validation accuracy')
 
 
     opt = parser.parse_args()   
