@@ -8,265 +8,149 @@ import torch
 from torch import nn
 
 from models import SAINT
+from augmentations import embed_data_mask
 import torch
 import wandb
 
-import sys
-sys.argv = ['']
-from data_openml import data_split
-
 import torch.optim as optim
+from utils import get_loss
+import preprocessor as pp
 
 
-print('Reading the data...')
-train = pd.read_parquet(r'/home/coenraadmiddel/Documents/RossmannStoreSales/TabNet/tabnet/train_processed.parquet')
-print("Read:", train.shape)
 
-#select only a couple of columns
-
-train = train[['Store',
-                'DayOfWeek',
-                'Promo',
-                'StateHoliday',
-                'SchoolHoliday',
-                'StoreType',
-                'Assortment',
-                'CompetitionDistance',
-                'Promo2SinceWeek',
-                'Promo2SinceYear',
-                'Year',
-                'Month',
-                'Day',
-                'WeekOfYear',
-                'CompetitionOpen',
-                'PromoOpen',
-                'IsPromoMonth',
-                'Sales',
-                'Set']]
-
-
-if "Set" not in train.columns:
-    train.reset_index(inplace=True, drop=True)
-    train["Set"] = np.random.choice(["train", "valid", "test"], p =[.8, .1, .1], size=(train.shape[0],))
-
-train_indices = train[train.Set=="train"].index
-valid_indices = train[train.Set=="valid"].index
-test_indices = train[train.Set=="test"].index
-
-categorical_columns = ['Store',
-                        'DayOfWeek',
-                        'Promo',
-                        'StateHoliday',
-                        'SchoolHoliday',
-                        'StoreType',
-                        'Assortment',
-                        # 'Year',
-                        # 'Month',
-                        # 'Day',
-                        # 'WeekOfYear',
-                        'IsPromoMonth']
-
-# split x and y
-X_all, y_all = train.drop(columns = ['Sales', 'Set']), np.log1p(train[['Sales']].values)
-
-temp = X_all.fillna("MissingValue")
-nan_mask = temp.ne("MissingValue").astype(int)
-
-X_train_d, y_train_d = data_split(X_all, y_all, nan_mask, train_indices)
-X_valid_d, y_valid_d = data_split(X_all, y_all, nan_mask, valid_indices)
-X_test_d, y_test_d = data_split(X_all, y_all, nan_mask, test_indices)
-
-
-X_train = X_train_d['data']
-X_test = X_test_d['data']
-X_valid = X_valid_d['data']
-
-y_train = y_train_d['data']
-y_test = y_test_d['data']
-y_valid = y_valid_d['data']
-
-#force categorical columns to the categorical type
-
-train[categorical_columns] = train[categorical_columns].astype('category')
-
-#get the indices of the categorical columns in train dataFrame
-
-cat_idxs = [train.columns.get_loc(c) for c in categorical_columns if c in train]
-
-#get the dimensions of the categorical columns in train dataFrame
-
-cat_dims = [len(train[c].cat.categories) for c in categorical_columns if c in train]
-
-y_dim = 1
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print("Using {}".format(device))
-
-
-cont_idxs = [i for i in range(X_train.shape[1]) if i not in cat_idxs]
-train_mean, train_std = np.array(X_train_d['data'][:,cont_idxs],dtype=np.float32).mean(0), np.array(X_train_d['data'][:,cont_idxs],dtype=np.float32).std(0)
-cat_dims = np.append(np.array([1]),np.array(cat_dims)).astype(int) #Appending 1 for CLS token, this is later used to generate embeddings.
-
-print('finished loading...')
-
-def main(opt):
-    wandb.init(project="saint_rossmann_mse", group='seed=7', config=opt)
-    #for regression this is the output dimension
-    
-    opt = wandb.config
-
-    #set the initialization seed:
-    torch.manual_seed(7)
-
-    print(opt)
-    model = SAINT(categories = tuple(cat_dims), 
-                    num_continuous = len(cont_idxs),                
-                    dim = opt.embedding_size,                           
-                    dim_out = 1,                       
-                    depth = opt.transformer_depth,                       
-                    heads = opt.attention_heads,                         
-                    attn_dropout = opt.attention_dropout,             
-                    ff_dropout = opt.ff_dropout,                  
-                    mlp_hidden_mults = (4, 2),       
-                    cont_embeddings = opt.cont_embeddings,
-                    attentiontype = opt.attentiontype,
-                    final_mlp_style = opt.final_mlp_style,
-                    y_dim = y_dim,
-                    )
-
-
-    criterion = nn.MSELoss().to(device)
-    # criterion = nn.PoissonNLLLoss().to(device)
-    model.to(device)
-    optimizer = optim.AdamW(model.parameters(),lr=opt.lr)
-    best_valid_auroc = 0
-    best_valid_accuracy = 0
-    best_test_auroc = 0
-    best_test_accuracy = 0
-    best_valid_rmse = 100000
-    print('Using the optimizer: ', opt.optimizer)
-    print('Training begins now.')
-
-    from torch.utils.data import DataLoader
-
-    from data_openml import DataSetCatCon
-
-    continuous_mean_std = np.array([train_mean, train_std]).astype(np.float32) 
-
-    train_ds = DataSetCatCon(X_train_d, y_train_d, cat_idxs, task='regression', continuous_mean_std=continuous_mean_std)
-    trainloader = DataLoader(train_ds, batch_size=opt.batchsize, shuffle=True)
-
-    valid_ds = DataSetCatCon(X_valid_d, y_valid_d, cat_idxs, task='regression', continuous_mean_std=continuous_mean_std)
-    validloader = DataLoader(valid_ds, batch_size=opt.batchsize, shuffle=False)
-
-    test_ds = DataSetCatCon(X_test_d, y_test_d, cat_idxs, task='regression', continuous_mean_std=continuous_mean_std)
-    testloader = DataLoader(test_ds, batch_size=opt.batchsize, shuffle=False)
-
-    # if opt.pretrain:
-    #     from pretraining import SAINT_pretrain
-    #     model = SAINT_pretrain(model, cat_idxs,X_train,y_train, continuous_mean_std, opt,device)
-
-    from augmentations import embed_data_mask
-    from utils import count_parameters, classification_scores, mean_sq_error
-    import os
-
-    modelsave_path = os.path.join(opt.savemodelroot, opt.run_name)
-
-    vision_dset = opt.vision_dset
-
-    for epoch in range(opt.epochs):
-        print('Starting epoch: ', epoch)
-        model.train()
-        running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
-            optimizer.zero_grad()
-            # x_categ is the the categorical data, x_cont has continuous data, y_gts has ground truth ys. cat_mask is an array of ones same shape as x_categ and an additional column(corresponding to CLS token) set to 0s. con_mask is an array of ones same shape as x_cont. 
-            x_categ, x_cont, y_gts, cat_mask, con_mask = data[0].to(device), data[1].to(device),data[2].to(device),data[3].to(device),data[4].to(device)
-
-            # We are converting the data to embeddings in the next step
-            _ , x_categ_enc, x_cont_enc = embed_data_mask(x_categ, x_cont, cat_mask, con_mask, model)           
-            reps = model.transformer(x_categ_enc, x_cont_enc)
-            # select only the representations corresponding to CLS token and apply mlp on it in the next step to get the predictions.
-            y_reps = reps[:,0,:]
-            
-            y_outs = model.mlpfory(y_reps)
-            if opt.task == 'regression':
-                loss = criterion(y_outs, y_gts) 
-            else:
-                loss = criterion(y_outs,y_gts.squeeze()) 
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        # print(running_loss)
-        if opt.active_log:
-            wandb.log({'epoch': epoch ,'train_epoch_loss': running_loss, 
-            'loss': loss.item()
-            })
-        if epoch%1==0:
-                model.eval()
-                with torch.no_grad():
-                    valid_rmse, orig_valid_rmse = mean_sq_error(model, validloader, device, vision_dset)    
-                    test_rmse, orig_test_rmse = mean_sq_error(model, testloader, device, vision_dset)  
-                    train_rmse, orig_train_rmse = mean_sq_error(model, trainloader, device, vision_dset)  
-                    print('[EPOCH %d] VALID RMSE: %.3f, ORIG VALID RMSE: %.3f' %
-                        (epoch + 1, valid_rmse, orig_valid_rmse ))
-                    print('[EPOCH %d] TEST RMSE: %.3f, ORIG TEST RMSE: %.3f' %
-                        (epoch + 1, test_rmse, orig_test_rmse ))
-                    print('[EPOCH %d] TRAIN RMSE: %.3f, ORIG TRAIN RMSE: %.3f' %
-                        (epoch + 1, train_rmse, orig_train_rmse ))
-                    
-                    if opt.active_log:
-                        wandb.log({'valid_rmse': valid_rmse
-                                    , 'test_rmse': test_rmse
-                                    , 'train_rmse': train_rmse
-                                    , 'orig_valid_rmse': orig_valid_rmse
-                                    , 'orig_test_rmse': orig_test_rmse
-                                    , 'orig_train_rmse': orig_train_rmse })     
-                    if valid_rmse < best_valid_rmse:
-                        best_valid_rmse = valid_rmse
-                        best_test_rmse = test_rmse
-                        best_train_rmse = train_rmse
-                        
-                        #get the run id from wandb
-                        run_id = wandb.run.id
-                        torch.save(model.state_dict(), f'{modelsave_path}/SAINT_model_best_{run_id}.pt')
-                        #Save as artifact on weights and biases
-                        artifact = wandb.Artifact(f'SAINT_model_best_{run_id}', type='model')
-                        #add the run id to the artifact                       
-                        wandb.run.log_artifact(artifact)
-                        early_stop_count = 0
-                    else:
-                        early_stop_count += 1
-                        print(f"Early stopping counter: {early_stop_count}/{opt.patience}")
-                        if early_stop_count >= opt.patience:
-                            print('EARLY STOPPING')
-                            break
-                model.train()
-                
-    total_parameters = count_parameters(model)
-    print('TOTAL NUMBER OF PARAMS: %d' %(total_parameters))
-    if opt.task =='binary':
-        print('AUROC on best model:  %.3f' %(best_test_auroc))
-    elif opt.task =='multiclass':
-        print('Accuracy on best model:  %.3f' %(best_test_accuracy))
-    else:
-        print('RMSE on best model:  %.3f' %(best_test_rmse))
-
-    if opt.active_log:
-        if opt.task == 'regression':
-            wandb.log({'total_parameters': total_parameters, 'test_rmse_bestep':best_test_rmse, 
-            'cat_dims':len(cat_idxs) , 'con_dims':len(cont_idxs), 'valid_rmse_best': best_valid_rmse })        
-        else:
-            wandb.log({'total_parameters': total_parameters, 'test_auroc_bestep':best_test_auroc , 
-            'test_accuracy_bestep':best_test_accuracy,'cat_dims':len(cat_idxs) , 'con_dims':len(cont_idxs) })
-
-            
-            
-if __name__ == '__main__':
+def main(args):
         
+    if args.reload_data:
+        print('reload_data: ', args.reload_data)
+        df = pd.read_parquet('df_post.parquet')
+        pre = pp.Preprocessor(target_col = 'Acc_GrossClaim')
+        pre.basics(df)
+
+    else:
+        print('reload_data: ', args.reload_data)
+        pre = pp.Preprocessor(target_col = 'Acc_GrossClaim')
+        #load from save_dict 
+        pre.cat_idxs, pre.cat_dims, pre.ord_idxs = pre.load_from_save_dict()
+
+        
+    cat_idxs = pre.cat_idxs
+    cat_dims = pre.cat_dims
+    cont_idxs = pre.ord_idxs
+
+    cat_dims_saint = np.append(np.array([1]), np.array(cat_dims)).astype(int) #Appending 1 for CLS token, this is later used to generate embeddings.
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print("Using {}".format(device))
+
+    print("----------------------------------------")
+    print("----------------------------------------")
+    print('Finished loading... ')
+    print("----------------------------------------")
+    print("----------------------------------------")
+        
+    
+    wandb.init(project="SAINT_mjolnir", config=args, entity="middelman", group='MSE')
+    
+    args = wandb.config    
+
+    print(args)
+    model = SAINT(categories = tuple(cat_dims_saint), 
+                    num_continuous = len(cont_idxs),                
+                    dim = args.embedding_size,                           
+                    dim_out = 1,                       
+                    depth = args.transformer_depth,                       
+                    heads = args.attention_heads,                         
+                    attn_dropout = args.attention_dropout,             
+                    ff_dropout = args.ff_dropout,                  
+                    mlp_hidden_mults = (4, 2),    
+                    # continuous_mean_std = None, #pre.cont_mean_std,   
+                    cont_embeddings = args.cont_embeddings,
+                    attentiontype = args.attentiontype,
+                    final_mlp_style = args.final_mlp_style,
+                    y_dim = 1,
+                    )  
+
+
+    model.to(device)
+    optimizer = optim.AdamW(model.parameters()
+                            , lr=args.lr
+                            , weight_decay=5e-5
+                            )
+    
+    # criterion = nn.MSELoss().to(device)
+    criterion = nn.PoissonNLLLoss(log_input=False).to(device)
+            
+    best_valid_loss = 1000000 #Unrealistically high number
+    best_test_loss = 1000000 #Unrealistically high number
+    early_stop_count = 0
+    print('Using the optimizer: ', args.optimizer)
+    print('Training begins now.')         
+    print('Reloading data: ', args.reload_data)
+
+    if args.reload_data:
+        trainloader, validloader, testloader = pre.preprocess_for_saint(batch_size = args['batchsize'], save = True, load_percentage = 0.2)#, load_percentage = i/5)
+    else:
+        trainloader, validloader, testloader = pre.load_for_saint()
+    
+    for epoch in range(args.epochs):
+            print('Starting epoch: ', epoch)
+            model.train()
+            for i, data in enumerate(trainloader, 0):
+                optimizer.zero_grad()
+                # x_categ is the the categorical data, x_cont has continuous data, y_gts has ground truth ys. cat_mask is an array of ones same shape as x_categ and an additional column(corresponding to CLS token) set to 0s. con_mask is an array of ones same shape as x_cont. 
+                x_categ, x_cont, y_gts, cat_mask, con_mask = data[0].to(device), data[1].to(device),data[2].to(device),data[3].to(device),data[4].to(device)
+
+                # We are converting the data to embeddings in the next step
+                _ , x_categ_enc, x_cont_enc = embed_data_mask(x_categ, x_cont, cat_mask, con_mask, model, vision_dset=False)           
+                reps = model.transformer(x_categ_enc, x_cont_enc)
+                # select only the representations corresponding to CLS token and apply mlp on it in the next step to get the predictions.
+                y_reps = reps[:,0,:]
+                
+                y_outs = model.mlpfory(y_reps)
+                loss = criterion(y_outs, y_gts) 
+                loss.backward()
+                optimizer.step()
+            if args.active_log:
+                wandb.log({'epoch': epoch , 
+                'train_loss': loss.item()})
+            
+            print('Finished epoch: ', epoch)
+            print('Training loss: ', loss.item())
+            
+            valid_loss = get_loss(model, validloader, device, criterion)
+            test_loss = get_loss(model, testloader, device, criterion)
+            
+            if args.active_log:
+                wandb.log({'valid_loss': valid_loss.item(), 'test_loss': test_loss.item()})
+
+            
+            if best_valid_loss > valid_loss:
+                print("Validation loss did not improve.")
+                early_stop_count += 1
+                print(f"Early stopping counter: {early_stop_count}/{args.patience}")
+                if early_stop_count >= args['patience']:
+                    print('EARLY STOPPING')
+                    break
+            else:
+                print("Validation loss improved!")
+                best_valid_loss = valid_loss
+                torch.save(model.state_dict(), f'models/mjolnir4/SAINT_model_best_{run_id}.pt')
+                run_id = wandb.run.id
+                early_stop_count = 0
+
+            if best_test_loss > test_loss:
+                print("testation loss did not improve.")
+            else:
+                print("testation loss improved!")
+                best_test_loss = test_loss
+            model.train()
+            
+
+if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
 
-    # parser.add_argument('--dset_id', required=True, type=int)
+    parser.add_argument('--reload_data', action='store_true')
     parser.add_argument('--vision_dset', action = 'store_true')
     parser.add_argument('--task', default='regression', type=str,choices = ['binary','multiclass','regression'])
     parser.add_argument('--cont_embeddings', default='MLP', type=str,choices = ['MLP','Noemb','pos_singleMLP'])
@@ -309,9 +193,9 @@ if __name__ == '__main__':
     parser.add_argument('--lam3', default=10, type=float)
     parser.add_argument('--final_mlp_style', default='sep', type=str,choices = ['common','sep'])
 
-    parser.add_argument('--patience', default=10, type=int, help='Number of epochs to wait before stopping if no improvement in validation accuracy')
+    parser.add_argument('--patience', default=5, type=int, help='Number of epochs to wait before stopping if no improvement in validation accuracy')
 
 
-    opt = parser.parse_args()   
+    args = parser.parse_args()   
 
-    main(opt)
+    main(args)
