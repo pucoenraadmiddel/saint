@@ -115,12 +115,12 @@ def mean_sq_error(model, dloader, device, vision_dset):
         rmse = mean_squared_error(y_test.cpu(), y_pred.cpu(), squared=False)
         
         # Convert y_test and y_pred to their original domain
-        y_test_orig, y_pred_orig = convert_to_original_domain(None, y_test.cpu().numpy(), y_pred.cpu().numpy())
+        # y_test_orig, y_pred_orig = convert_to_original_domain(None, y_test.cpu().numpy(), y_pred.cpu().numpy())
 
         # Compute orig_rmse in the original domain
-        orig_rmse = mean_squared_error(y_test_orig, y_pred_orig, squared=False)
+        # orig_rmse = mean_squared_error(y_test_orig, y_pred_orig, squared=False)
         
-    return rmse, orig_rmse
+    return rmse #, orig_rmse
 
         
 def mean_sq_error_per_sample(model, dloader, device, vision_dset=False):

@@ -67,7 +67,8 @@ categorical_columns = ['Store',
                         'IsPromoMonth']
 
 # split x and y
-X_all, y_all = train.drop(columns = ['Sales', 'Set']), np.log1p(train[['Sales']].values)
+# X_all, y_all = train.drop(columns = ['Sales', 'Set']), np.log1p(train[['Sales']].values)
+X_all, y_all = train.drop(columns = ['Sales', 'Set']), train[['Sales']].values
 
 temp = X_all.fillna("MissingValue")
 nan_mask = temp.ne("MissingValue").astype(int)
@@ -204,23 +205,25 @@ def main(opt):
         if epoch%1==0:
                 model.eval()
                 with torch.no_grad():
-                    valid_rmse, orig_valid_rmse = mean_sq_error(model, validloader, device, vision_dset)    
-                    test_rmse, orig_test_rmse = mean_sq_error(model, testloader, device, vision_dset)  
-                    train_rmse, orig_train_rmse = mean_sq_error(model, trainloader, device, vision_dset)  
-                    print('[EPOCH %d] VALID RMSE: %.3f, ORIG VALID RMSE: %.3f' %
-                        (epoch + 1, valid_rmse, orig_valid_rmse ))
-                    print('[EPOCH %d] TEST RMSE: %.3f, ORIG TEST RMSE: %.3f' %
-                        (epoch + 1, test_rmse, orig_test_rmse ))
-                    print('[EPOCH %d] TRAIN RMSE: %.3f, ORIG TRAIN RMSE: %.3f' %
-                        (epoch + 1, train_rmse, orig_train_rmse ))
+                    valid_rmse = mean_sq_error(model, validloader, device, vision_dset)    
+                    # valid_rmse, orig_valid_rmse = mean_sq_error(model, validloader, device, vision_dset)    
+                    test_rmse = mean_sq_error(model, testloader, device, vision_dset)  
+                    # test_rmse, orig_test_rmse = mean_sq_error(model, testloader, device, vision_dset)  
+                    train_rmse = mean_sq_error(model, trainloader, device, vision_dset)  
+                    # train_rmse, orig_train_rmse = mean_sq_error(model, trainloader, device, vision_dset)  
+                    # print('[EPOCH %d] VALID RMSE: %.3f , ORIG VALID RMSE: %.3f' %
+                    # print('[EPOCH %d] VALID RMSE: %.3f (epoch + 1, valid_rmse ))
+                    # print('[EPOCH %d] TEST RMSE: %.3f, ORIG TEST RMSE: %.3f' (epoch + 1, test_rmse ))
+                    # print('[EPOCH %d] TRAIN RMSE: %.3f, ORIG TRAIN RMSE: %.3f' (epoch + 1, train_rmse ))
                     
                     if opt.active_log:
                         wandb.log({'valid_rmse': valid_rmse
                                     , 'test_rmse': test_rmse
                                     , 'train_rmse': train_rmse
-                                    , 'orig_valid_rmse': orig_valid_rmse
-                                    , 'orig_test_rmse': orig_test_rmse
-                                    , 'orig_train_rmse': orig_train_rmse })     
+                                    # , 'orig_valid_rmse': orig_valid_rmse
+                                    # , 'orig_test_rmse': orig_test_rmse
+                                    # , 'orig_train_rmse': orig_train_rmse 
+                                    })     
                     if valid_rmse < best_valid_rmse:
                         best_valid_rmse = valid_rmse
                         best_test_rmse = test_rmse
